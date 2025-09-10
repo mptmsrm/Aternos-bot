@@ -1,22 +1,78 @@
-const steamUser = require('steam-user');
-const steamTotp = require('steam-totp');
 const keep_alive = require('./keep_alive.js')
+const express = require('express');
+const mineflayer = require('mineflayer');
 
-var username = process.env.username;
-var password = process.env.password;
-var shared_secret = process.env.shared;
+// Create a simple web server to keep Replit awake
+const app = express();
+const port = 3000;
 
-var games = [730, 440, 570];  // Enter here AppIDs of the needed games
-var status = 1;  // 1 - online, 7 - invisible
-
-
-user = new steamUser();
-user.logOn({"accountName": username, "password": password, "twoFactorCode": steamTotp.generateAuthCode(shared_secret)});
-user.on('loggedOn', () => {
-	if (user.steamID != null) console.log(user.steamID + ' - Successfully logged on');
-	user.setPersona(status);               
-	user.gamesPlayed(games);
+app.get('/', (req, res) => {
+  res.send('AFK Bot is running!');
 });
+
+app.listen(port, () => {
+  console.log(`Web server running on port ${port}`);
+});
+
+// Function to create and configure the bot
+function createBot() {
+  console.log('Attempting to connect to Minecraft server...');
+
+  const bot = mineflayer.createBot({
+    host: "MSRMPT.aternos.me",             // Your server IP
+    port: 50787,                    // Your server port
+    username: "AFK_Bot",            // Bot's username
+    version: "1.21",                // Server version (now 1.21)
+    auth: 'offline'                 // Use offline mode
+  });
+
+  bot.on('spawn', () => {
+    console.log('Bot connected to Minecraft server!');
+    console.log('Bot position:', bot.entity.position);
+
+    // Jump every 4 minutes to prevent inactivity kick
+    setInterval(() => {
+      console.log('Jumping to prevent inactivity kick...');
+      bot.setControlState('jump', true);
+      setTimeout(() => {
+        bot.setControlState('jump', false);
+      }, 500);
+    }, 4 * 60 * 1000); // 4 minutes in milliseconds
+  });
+
+  bot.on('error', (err) => {
+    console.error('Bot error:', err.message);
+
+    // Attempt to reconnect after 30 seconds
+    console.log('Attempting to reconnect in 30 seconds...');
+    setTimeout(createBot, 30000);
+  });
+
+  bot.on('end', (reason) => {
+    console.log('Bot disconnected from server. Reason:', reason);
+
+    // Attempt to reconnect after 30 seconds
+    console.log('Attempting to reconnect in 30 seconds...');
+    setTimeout(createBot, 30000);
+  });
+
+  bot.on('kicked', (reason) => {
+    console.log('Bot was kicked from server. Reason:', reason);
+
+    // Attempt to reconnect after 30 seconds
+    console.log('Attempting to reconnect in 30 seconds...');
+    setTimeout(createBot, 30000);
+  });
+
+  bot.on('message', (message) => {
+    console.log('Server message:', message.toAnsi());
+  });
+
+  return bot;
+}
+
+// Start the bot
+const bot = createBot();
 
 
 // var username2 = process.env.username2;
